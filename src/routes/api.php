@@ -3,6 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\CategolyController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\SummaryController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -18,5 +22,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-Route::get('categories', 'getCategolies');
-Route::post();
+Route::get('categories',[CategolyController::class, 'getCategolies']);
+Route::post('transactions', [TransactionController::class, 'createTransactions']);
+Route::get('transactions', [TransactionController::class, 'getMonthTransactions']);
+Route::get('summaries', [SummaryController::class, 'monthlySummary']);
