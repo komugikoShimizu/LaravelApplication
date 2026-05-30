@@ -1,0 +1,17 @@
+categories
+- id BigInt
+- name String(255)
+- type String(20) income / expense
+- color String(7)
+- created_at Timestamp
+- updated_at Timestamp
+
+transactions
+- id BigInt
+- occurred_on Date
+- type String(20) income / expense
+- category_id ForeignId -> categories.id
+- amount UnsignedInteger
+- memo String(255) nullable
+- created_at Timestamp
+- updated_at Timestamp
