@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { CalendarDays, CircleDollarSign, Landmark, Plus, ReceiptText, WalletCards } from "lucide-react";
-import { categories, monthlySummary, transactions } from "./lib/mockData";
-import type { TransactionPayload, TransactionType } from "./lib/api";
+import { budgetApi } from "./lib/api";
+import type { Category, MonthlySummary, TransactionPayload, TransactionType } from "./lib/api";
 import "./styles.css";
 
 const currency = new Intl.NumberFormat("ja-JP", {
@@ -14,11 +14,50 @@ const currency = new Intl.NumberFormat("ja-JP", {
 function App() {
   const [month, setMonth] = useState("2026-05");
   const [type, setType] = useState<TransactionType>("expense");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [monthlyTransactions, setMonthlyTransactions] = useState<MonthlySummaryTransaction[]>([]);
+  const [totals, setTotals] = useState<MonthlySummary>({
+    month,
+    income_total: 0,
+    expense_total: 0,
+    balance: 0,
+    by_category: []
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const availableCategories = categories.filter((category) => category.type === type);
+  const expenseCategoryTotals = totals.by_category.filter((category) => category.type === "expense");
 
-  const totals = useMemo(() => monthlySummary, []);
+  const defaultDate = useMemo(() => `${month}-01`, [month]);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const loadBudgetData = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const [categoriesResponse, transactionsResponse, summaryResponse] = await Promise.all([
+        budgetApi.listCategories(),
+        budgetApi.listTransactions(month),
+        budgetApi.getMonthlySummary(month)
+      ]);
+
+      setCategories(categoriesResponse.data);
+      setMonthlyTransactions(transactionsResponse.data);
+      setTotals(summaryResponse.data);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("APIから家計簿データを取得できませんでした。Laravel APIの起動状態を確認してください。");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [month]);
+
+  useEffect(() => {
+    void loadBudgetData();
+  }, [loadBudgetData]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload: TransactionPayload = {
@@ -29,8 +68,19 @@ function App() {
       memo: String(form.get("memo") ?? "")
     };
 
-    console.info("POST /api/transactions", payload);
-    event.currentTarget.reset();
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await budgetApi.createTransaction(payload);
+      await loadBudgetData();
+      event.currentTarget.reset();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("記録を保存できませんでした。入力内容とAPIのレスポンスを確認してください。");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -70,6 +120,8 @@ function App() {
           <Metric label="残高" value={totals.balance} tone="balance" />
         </section>
 
+        {errorMessage ? <p className="errorMessage">{errorMessage}</p> : null}
+
         <section className="contentGrid">
           <form className="entryPanel" onSubmit={handleSubmit}>
             <div className="panelHeader">
@@ -86,11 +138,11 @@ function App() {
             </div>
             <label>
               日付
-              <input name="occurred_on" type="date" defaultValue="2026-05-30" required />
+              <input name="occurred_on" type="date" defaultValue={defaultDate} required />
             </label>
             <label>
               カテゴリ
-              <select name="category_id" required>
+              <select name="category_id" required disabled={availableCategories.length === 0}>
                 {availableCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
@@ -106,9 +158,9 @@ function App() {
               メモ
               <input name="memo" type="text" placeholder="任意" />
             </label>
-            <button className="submitButton" type="submit">
+            <button className="submitButton" type="submit" disabled={isSaving || availableCategories.length === 0}>
               <Plus aria-hidden="true" />
-              追加
+              {isSaving ? "保存中" : "追加"}
             </button>
           </form>
 
@@ -118,7 +170,7 @@ function App() {
               <h2>カテゴリ別</h2>
             </div>
             <div className="categoryList">
-              {totals.by_category.map((category) => (
+              {expenseCategoryTotals.map((category) => (
                 <div className="categoryRow" key={category.category_id}>
                   <span className="swatch" style={{ backgroundColor: category.color }} />
                   <span>{category.category_name}</span>
@@ -143,16 +195,26 @@ function App() {
                   <th>メモ</th>
                   <th>金額</th>
                 </tr>
-              </thead>
+            </thead>
               <tbody>
-                {transactions.map((transaction) => (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4}>読み込み中</td>
+                  </tr>
+                ) : monthlyTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>記録がありません</td>
+                  </tr>
+                ) : (
+                  monthlyTransactions.map((transaction) => (
                   <tr key={transaction.id}>
-                    <td>{transaction.occurred_on}</td>
+                    <td>{formatDate(transaction.occurred_on)}</td>
                     <td>{transaction.category_name}</td>
                     <td>{transaction.memo}</td>
                     <td className={transaction.type}>{currency.format(transaction.amount)}</td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -160,6 +222,20 @@ function App() {
       </section>
     </main>
   );
+}
+
+type MonthlySummaryTransaction = {
+  id: number;
+  occurred_on: string;
+  type: TransactionType;
+  category_id: number;
+  category_name: string;
+  amount: number;
+  memo: string | null;
+};
+
+function formatDate(value: string) {
+  return value.slice(0, 10);
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: "income" | "expense" | "balance" }) {

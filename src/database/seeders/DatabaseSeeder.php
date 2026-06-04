@@ -3,7 +3,9 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Seeder;
+use Database\Seeders\TransactionSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -12,11 +14,16 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        Schema::disableForeignKeyConstraints();
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        \App\Models\Transaction::query()->truncate();
+        \App\Models\Category::query()->truncate();
+
+        Schema::enableForeignKeyConstraints();
+
+        $this->call([
+            CategorySeeder::class,
+            TransactionSeeder::class,
+        ]);
     }
 }

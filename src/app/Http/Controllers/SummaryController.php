@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Services\SummaryService;
+use App\Http\Requests\MonthRequest;
 
-class SummaryController
+class SummaryController extends Controller
 {
-    public function __construct
-    (){}
-
-    public function monthlySummary(Request $req)
+    public function __construct(private readonly SummaryService $summaryService)
     {
+    }
 
+    public function monthly(MonthRequest $request)
+    {
+        $month = $request->query('month');
+        return $this->summaryService->getMonthlySummary($month);
     }
 }

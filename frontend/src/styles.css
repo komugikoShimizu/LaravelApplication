@@ -250,6 +250,23 @@ select {
   min-height: 44px;
 }
 
+.submitButton:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.errorMessage {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-weight: 700;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+}
+
 .categoryList {
   display: grid;
   gap: 12px;
