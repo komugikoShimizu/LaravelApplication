@@ -14,7 +14,8 @@ class SummaryService
     {
         $startOfMonth = CarbonImmutable::createFromFormat('Y-m', $month)->startOfMonth();
         $endOfMonth = $startOfMonth->endOfMonth();
-        $monthTransactions = $this->transaction->whereBetween('occurred_on', [
+        $monthTransactions = $this->transaction::with('category')
+        ->whereBetween('occurred_on', [
             $startOfMonth->toDateString(),
             $endOfMonth->toDateString(),
         ])->get();
@@ -26,7 +27,7 @@ class SummaryService
         foreach ($monthTransactions as $monthTransaction) {
             if ($monthTransaction->type === 'income') $income_total += $monthTransaction->amount;
             if ($monthTransaction->type === 'expense') $expense_total += $monthTransaction->amount;
-            $category = Category::find($monthTransaction->category_id);
+            $category = $monthTransaction->category;
 
             if (!isset($categories[$category->id])) {
                 $categories[$category->id] = [
